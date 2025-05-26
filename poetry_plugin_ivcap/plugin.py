@@ -16,14 +16,32 @@ class IvcapCommand(Command):
     name = "ivcap"
     description = "IVCAP plugin `poetry ivcap <subcommand>`"
     help = """\
+
 IVCAP plugin
 
+Supporting the development of services and tools for the IVCAP platform
+
 Available subcommands:
-  run       Run the configured service
-  deploy    Deploy using configured settings
+    run                 Run the service locally
+    docker-build        Build the docker image for this service
+    docker-run          Run the service's docker image locally
+    docker-publish      Publish the service's docker image to IVCAP
+    service-register    Register the service with IVCAP
+    create-service-id   Create a unique service ID for the service
+    tool-register       Register the service as an AI Tool with IVCAP
 
 Example:
   poetry ivcap run
+
+Configurable optiosn in pyproject.toml:
+
+  [tool.poetry-plugin-ivcap]
+  service-file = "service.py"  # The Python file that implements the service
+  service-file = "service.py"
+  service-id = "urn:ivcap:service:ac158a1f-dfb4-5dac-bf2e-9bf15e0f2cc7" # A unique identifier for the service
+
+  docker-build-template = "docker buildx build -t #DOCKER_NAME#  ."
+  docker-run-template = "docker run -rm -p #PORT#:#PORT#"
 """
     arguments = [
         argument("subcommand", optional=True, description="Subcommand: run, deploy, etc.")
@@ -50,7 +68,9 @@ Example:
         elif sub == "tool-register":
             tool_register(data, self.line)
         else:
-            self.line(f"<error>Unknown subcommand: {sub}</error>")
+            if not (sub == None or sub == "help"):
+                self.line(f"<error>Unknown subcommand: {sub}</error>")
+            print(self.help)
 
     def run_service(self, data):
         config = data.get("tool", {}).get("poetry-plugin-ivcap", {})
