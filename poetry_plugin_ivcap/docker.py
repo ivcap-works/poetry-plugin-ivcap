@@ -3,15 +3,16 @@
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file. See the AUTHORS file for names of contributors.
 #
+from datetime import datetime, timezone
 import os
 import re
 import sys
 import tempfile
-from typing import Dict, Optional
+from typing import Dict, List, Optional
 from pydantic import BaseModel, Field
 import subprocess
 
-from .util import command_exists, get_name
+from .util import command_exists, get_name, get_version
 
 DOCKER_BUILD_TEMPLATE = """
 docker buildx build
@@ -57,10 +58,20 @@ class DockerConfig(BaseModel):
             .split()
         return t
 
-    def from_run_template(self, data) -> str:
+    def from_run_template(self, data, args) -> List[any]:
         pdata = data.get("tool", {}).get("poetry-plugin-ivcap", {})
         template = pdata.get("docker-run-template", DOCKER_RUN_TEMPLATE).strip()
-        opts = pdata.get("docker-run-opts", {"port": 8080})
+
+        opts = pdata.get("docker-run-opts", {})
+        port = get_port_value(args)
+        if port:
+            opts['port'] = port
+        elif opts.get('port') is not None:
+            opts['port'] = opts.get('port')
+        elif '--port' in template:
+            # If the template has a port but no port is provided, use a default
+            opts['port'] = '8000'
+
         t = template.strip()\
             .replace("#NAME#", self.name)\
             .replace("#TAG#", self.tag)\
@@ -71,12 +82,14 @@ class DockerConfig(BaseModel):
         for key, value in opts.items():
             t = t.replace(f"#{key.upper()}#", str(value))
 
-        return t.split()
+        cmd = t.split()
+        cmd.extend(args)
+        return cmd
 
 
 def docker_build(data: dict, line, arch = None) -> None:
     check_docker_cmd(line)
-    config = _docker_cfg(data, line, arch)
+    config = docker_cfg(data, line, arch)
     build_cmd = config.from_build_template(data)
     line(f"<info>INFO: {' '.join(build_cmd)}</info>")
     process = subprocess.Popen(build_cmd, stdout=sys.stdout, stderr=sys.stderr)
@@ -87,10 +100,10 @@ def docker_build(data: dict, line, arch = None) -> None:
         line("<info>INFO: Docker build completed successfully</info>")
     return config.docker_name
 
-def docker_run(data: dict, line) -> None:
+def docker_run(data: dict, args, line) -> None:
     check_docker_cmd(line)
-    config = _docker_cfg(data, line)
-    build_run = config.from_run_template(data)
+    config = docker_cfg(data, line)
+    build_run = config.from_run_template(data, args)
     line(f"<info>INFO: {' '.join(build_run)}</info>")
     process = subprocess.Popen(build_run, stdout=sys.stdout, stderr=sys.stderr)
     exit_code = process.wait()
@@ -99,23 +112,15 @@ def docker_run(data: dict, line) -> None:
     else:
         line("<info>INFO: Docker run completed successfully</info>")
 
-def _docker_cfg(data: dict, line, arch = None) -> DockerConfig:
+def docker_cfg(data: dict, line, arch = None) -> DockerConfig:
     project_data = data.get("project", {})
     name = get_name(data)
-    version = project_data.get("version", None)
 
     pdata = data.get("tool", {}).get("poetry-plugin-ivcap", {})
-    config = DockerConfig(name=name, version=version, **pdata.get("docker", {}))
+    config = DockerConfig(name=name, **pdata.get("docker", {}))
     if arch:
         # override architecture if provided
         config.arch = arch
-
-    if not config.version:
-        try:
-            config.version = subprocess.check_output(['git', 'describe', '--tags', '--abbrev=0']).decode().strip()
-        except Exception as e:
-            line(f"<error>Error retrieving latest tag: {e}</error>")
-            config.version = "???"
 
     if not config.tag:
         try:
@@ -123,6 +128,9 @@ def _docker_cfg(data: dict, line, arch = None) -> DockerConfig:
         except Exception as e:
             line(f"<warning>WARN: retrieving commit hash: {e}</warning>")
             config.tag = "latest"
+
+    if not config.version:
+        config.version = get_version(data, config.tag, line)
 
     if not config.arch:
         try:
@@ -183,3 +191,12 @@ def check_docker_cmd(line):
     if not command_exists("docker"):
         line("<error>'docker' command not found. Please install it first.</error>")
         sys.exit(1)
+
+def get_port_value(arr):
+    try:
+        index = arr.index('--port')
+        return arr[index + 1]
+    except ValueError:
+        return None
+    except IndexError:
+        return None

@@ -3,10 +3,13 @@
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file. See the AUTHORS file for names of contributors.
 #
+import os
 from poetry.plugins.application_plugin import ApplicationPlugin
 from cleo.commands.command import Command
 from cleo.helpers import argument
 import subprocess
+
+from poetry_plugin_ivcap.util import get_version
 
 from .ivcap import create_service_id, service_register, tool_register
 from .docker import docker_build, docker_run
@@ -31,9 +34,9 @@ Available subcommands:
     tool-register       Register the service as an AI Tool with IVCAP
 
 Example:
-  poetry ivcap run
+  poetry ivcap run -- --port 8080
 
-Configurable optiosn in pyproject.toml:
+Configurable options in pyproject.toml:
 
   [tool.poetry-plugin-ivcap]
   service-file = "service.py"  # The Python file that implements the service
@@ -44,20 +47,26 @@ Configurable optiosn in pyproject.toml:
   docker-run-template = "docker run -rm -p #PORT#:#PORT#"
 """
     arguments = [
-        argument("subcommand", optional=True, description="Subcommand: run, deploy, etc.")
+        argument("subcommand", optional=True, description="Subcommand: run, deploy, etc."),
+        argument("args", optional=True, multiple=True, description="Additional arguments for subcommand"),
     ]
+
+    allow_extra_args = True
+    ignore_validation_errors = True
 
     def handle(self):
         poetry = self.application.poetry
         data = poetry.pyproject.data
 
         sub = self.argument("subcommand")
+        args = self.argument("args")
+
         if sub == "run":
-            self.run_service(data)
+            self.run_service(data, args, self.line)
         elif sub == "docker-build":
             docker_build(data, self.line)
         elif sub == "docker-run":
-            docker_run(data, self.line)
+            docker_run(data, args, self.line)
         elif sub == "docker-publish":
             docker_publish(data, self.line)
         elif sub == "service-register":
@@ -72,18 +81,26 @@ Configurable optiosn in pyproject.toml:
                 self.line(f"<error>Unknown subcommand: {sub}</error>")
             print(self.help)
 
-    def run_service(self, data):
+    def run_service(self, data, args, line):
         config = data.get("tool", {}).get("poetry-plugin-ivcap", {})
 
         service = config.get("service-file")
-        port = config.get("port")
-
-        if not service or not port:
-            self.line("<error>Missing 'service-file' or 'port' in [tool.poetry-plugin-ivcap]</error>")
+        if not service:
+            self.line("<error>Missing 'service-file' in [tool.poetry-plugin-ivcap]</error>")
             return
 
-        self.line(f"<info>Running: python {service} --port {port}</info>")
-        subprocess.run(["poetry", "run", "python", service, "--port", str(port)])
+        if not '--port' in args:
+            port = config.get("port")
+            if port:
+                args.extend(["--port", str(port)])
+
+        env = os.environ.copy()
+        env["VERSION"] = get_version(data, None, line)
+
+        cmd = ["poetry", "run", "python", service]
+        cmd.extend(args)
+        self.line(f"<info>Running: {' '.join(cmd)}</info>")
+        subprocess.run(cmd, env=env)
 
 class IvcapPlugin(ApplicationPlugin):
     def activate(self, application):

@@ -5,6 +5,7 @@
 #
 import subprocess
 import platform
+from datetime import datetime, timezone
 
 def get_name(data) -> str:
     project_data = data.get("project", {})
@@ -85,3 +86,23 @@ def execute_subprocess_and_capture_output(command):
         full_output += line
 
     return full_output
+
+def get_version(data, tag, line):
+    if not tag:
+        try:
+            tag = subprocess.check_output(['git', 'rev-parse', "--short", 'HEAD']).decode().strip()
+        except Exception as e:
+            line(f"<warning>WARN: retrieving commit hash: {e}</warning>")
+            tag = "latest"
+
+    project_data = data.get("project", {})
+    v = project_data.get("version", None)
+    if not v:
+        try:
+            v = subprocess.check_output(['git', 'describe', '--tags', '--abbrev=0']).decode().strip()
+        except Exception as e:
+            line(f"<error>Error retrieving latest tag: {e}</error>")
+            v = "???"
+    now = datetime.now(timezone.utc).astimezone()
+    version = f"{v}|{tag}|{now.replace(microsecond=0).isoformat()}"
+    return version

@@ -11,7 +11,7 @@ import tempfile
 import uuid
 import humanize
 
-from .docker import _docker_cfg, docker_build, docker_push
+from .docker import docker_cfg, docker_build, docker_push
 from .util import command_exists, execute_subprocess_and_capture_output, get_name, string_to_number
 
 def docker_publish(data, line):
@@ -38,7 +38,7 @@ def service_register(data, line):
         line("<error>Missing 'service-file' in [tool.poetry-plugin-ivcap]</error>")
         return
 
-    dcfg = _docker_cfg(data, line, "amd64")
+    dcfg = docker_cfg(data, line, "amd64")
     pkg_cmd = ["ivcap", "package", "list", dcfg.docker_name]
     line(f"<debug>Running: {' '.join(pkg_cmd)} </debug>")
     pkg = subprocess.check_output(pkg_cmd).decode()
