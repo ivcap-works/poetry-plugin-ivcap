@@ -8,9 +8,11 @@ Add to your `pyproject.toml`:
 
 ```toml
 [tool.poetry-plugin-ivcap]
-default_target = "docker"
-docker_tag = "myapp:dev"
-```
+service-file = "service.py"
+service-id = "urn:ivcap:service:ac158a1f-dfb4-5dac-bf2e-9bf15e0f2cc7"
+port = 8077
+# docker
+# docker-run-opts = { port = 8079 }```
 
 ## Installation
 

@@ -16,9 +16,7 @@ from .util import command_exists, execute_subprocess_and_capture_output, get_nam
 
 def docker_publish(data, line):
     check_ivcap_cmd(line)
-    #dname = docker_build(data, line, arch="amd64")
-    dname = "gene_onology_term_mapper_amd64:9a9a7cc"
-    print(dname)
+    dname = docker_build(data, line, arch="amd64")
 
     size_cmd = ["docker", "inspect", "--format='{{.Size}}'", dname]
     line(f"<debug>Running: {' '.join(size_cmd)} </debug>")

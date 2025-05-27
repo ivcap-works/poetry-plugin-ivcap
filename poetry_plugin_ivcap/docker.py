@@ -24,12 +24,20 @@ docker buildx build
     --load #PROJECT_DIR#
 """
 
-DOCKER_RUN_TEMPLATE = """
+DOCKER_LAMBDA_RUN_TEMPLATE = """
 	docker run -it
         -p #PORT#:#PORT#
 		--platform=linux/#ARCH#
 		--rm \
-		#NAME#_#ARCH#:#TAG# --port #PORT#
+		#NAME#_#ARCH#:#TAG#
+"""
+
+DOCKER_BATCH_RUN_TEMPLATE = """
+	docker run -it
+		--platform=linux/#ARCH#
+        -v #PROJECT_DIR#:/data
+		--rm \
+		#NAME#_#ARCH#:#TAG#
 """
 
 class DockerConfig(BaseModel):
@@ -38,7 +46,7 @@ class DockerConfig(BaseModel):
     arch: Optional[str] = Field(None)
     version: Optional[str] = Field(None)
     dockerfile: Optional[str] = Field("Dockerfile")
-    project_dir: Optional[str] = Field(".")
+    project_dir: Optional[str] = Field(os.getcwd())
 
     @property
     def docker_name(self) -> str:
@@ -58,32 +66,55 @@ class DockerConfig(BaseModel):
             .split()
         return t
 
-    def from_run_template(self, data, args) -> List[any]:
+    def from_run_template(self, data, args, line) -> List[any]:
         pdata = data.get("tool", {}).get("poetry-plugin-ivcap", {})
-        template = pdata.get("docker-run-template", DOCKER_RUN_TEMPLATE).strip()
+        template = pdata.get("docker-run-template")
+        if template is None:
+            smode = pdata.get("service-type")
+            if smode is None:
+                line("<error>ERROR: 'service-type' is not defined in [poetry-plugin-ivcap]</error>")
+                sys.exit(1)
+            if smode == "lambda":
+                template = DOCKER_LAMBDA_RUN_TEMPLATE
+            elif smode == "batch":
+                template = DOCKER_BATCH_RUN_TEMPLATE
+            else:
+                line(f"<error>ERROR: Unknown service type '{smode}' in [poetry-plugin-ivcap]</error>")
+                sys.exit(1)
 
-        opts = pdata.get("docker-run-opts", {})
+        opts = pdata.get("docker-run-opts", [])
         port = get_port_value(args)
-        if port:
-            opts['port'] = port
-        elif opts.get('port') is not None:
-            opts['port'] = opts.get('port')
-        elif '--port' in template:
-            # If the template has a port but no port is provided, use a default
-            opts['port'] = '8000'
+        port_in_args = True
+        if not port:
+            port = get_port_value(opts)
+        if not port:
+            port_in_args = False
+            port = str(pdata.get("port", 8000))
+
+        # elif opts.get('port') is not None:
+        #     opts['port'] = opts.get('port')
+        # elif '--port' in template:
+        #     # If the template has a port but no port is provided, use a default
+        #     opts['port'] = '8000'
 
         t = template.strip()\
             .replace("#NAME#", self.name)\
             .replace("#TAG#", self.tag)\
+            .replace("#PORT#", port)\
             .replace("#ARCH#", self.arch)\
             .replace("#VERSION#", self.version)\
             .replace("#PROJECT_DIR#", self.project_dir)
 
-        for key, value in opts.items():
-            t = t.replace(f"#{key.upper()}#", str(value))
+        # for key, value in opts.items():
+        #     if key != "port":
+        #         t = t.replace(f"#{key.upper()}#", str(value))
+
 
         cmd = t.split()
+        cmd.extend(opts)
         cmd.extend(args)
+        if smode == "lambda" and not port_in_args:
+            cmd.extend(["--port", port])
         return cmd
 
 
@@ -103,7 +134,7 @@ def docker_build(data: dict, line, arch = None) -> None:
 def docker_run(data: dict, args, line) -> None:
     check_docker_cmd(line)
     config = docker_cfg(data, line)
-    build_run = config.from_run_template(data, args)
+    build_run = config.from_run_template(data, args, line)
     line(f"<info>INFO: {' '.join(build_run)}</info>")
     process = subprocess.Popen(build_run, stdout=sys.stdout, stderr=sys.stderr)
     exit_code = process.wait()
@@ -113,7 +144,6 @@ def docker_run(data: dict, args, line) -> None:
         line("<info>INFO: Docker run completed successfully</info>")
 
 def docker_cfg(data: dict, line, arch = None) -> DockerConfig:
-    project_data = data.get("project", {})
     name = get_name(data)
 
     pdata = data.get("tool", {}).get("poetry-plugin-ivcap", {})
