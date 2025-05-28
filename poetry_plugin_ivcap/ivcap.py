@@ -108,16 +108,16 @@ def tool_register(data, line):
         if os.path.exists(tmp_path):
             os.remove(tmp_path)
 
-def get_service_id(data, line):
+def get_service_id(data, is_silent, line):
     service_id = data.get("tool", {}).get("poetry-plugin-ivcap", {}).get("service-id")
     if not service_id:
-        service_id = create_service_id(data, line)
+        service_id = create_service_id(data, is_silent, line)
     return service_id
 
-def create_service_id(data, line):
-    check_ivcap_cmd(line)
+def create_service_id(data, is_silent, line):
+    check_ivcap_cmd(line, is_silent)
     name = get_name(data)
-    account_id = get_account_id(data, line)
+    account_id = get_account_id(data, line, is_silent)
     id = uuid.uuid5(uuid.NAMESPACE_DNS, f"{name}{account_id}")
     return f"urn:ivcap:service:{id}"
 
@@ -127,10 +127,11 @@ def get_policy(data, line):
         policy = "urn:ivcap:policy:ivcap.open.metadata"
     return policy
 
-def get_account_id(data, line):
+def get_account_id(data, line, is_silent=False):
     check_ivcap_cmd(line)
     cmd = ["ivcap", "context", "get", "account-id"]
-    line(f"<debug>Running: {' '.join(cmd)} </debug>")
+    if not is_silent:
+        line(f"<debug>Running: {' '.join(cmd)} </debug>")
     try:
         account_id = subprocess.check_output(cmd).decode().strip()
         return account_id
@@ -138,7 +139,7 @@ def get_account_id(data, line):
         line(f"<error>Error retrieving account ID: {e}</error>")
         sys.exit(1)
 
-def check_ivcap_cmd(line):
+def check_ivcap_cmd(line, is_silent=False):
     if not command_exists("ivcap"):
         line("<error>'ivcap' command not found. Please install the IVCAP CLI tool.</error>")
         line("<error>... see https://github.com/ivcap-works/ivcap-cli?tab=readme-ov-file#install-released-binaries for instructions</error>")

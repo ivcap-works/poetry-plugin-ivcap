@@ -6,12 +6,12 @@
 import os
 from poetry.plugins.application_plugin import ApplicationPlugin
 from cleo.commands.command import Command
-from cleo.helpers import argument
+from cleo.helpers import argument, option
 import subprocess
 
 from poetry_plugin_ivcap.util import get_version
 
-from .ivcap import create_service_id, service_register, tool_register
+from .ivcap import create_service_id, get_service_id, service_register, tool_register
 from .docker import docker_build, docker_run
 from .ivcap import docker_publish
 
@@ -31,6 +31,7 @@ Available subcommands:
     docker-publish      Publish the service's docker image to IVCAP
     service-register    Register the service with IVCAP
     create-service-id   Create a unique service ID for the service
+    get-service-id      Return the service ID for the service
     tool-register       Register the service as an AI Tool with IVCAP
 
 Example:
@@ -50,6 +51,9 @@ Configurable options in pyproject.toml:
         argument("subcommand", optional=True, description="Subcommand: run, deploy, etc."),
         argument("args", optional=True, multiple=True, description="Additional arguments for subcommand"),
     ]
+    options = [
+        option("silent", None, "Run silently (no output)", flag=True),
+    ]
 
     allow_extra_args = True
     ignore_validation_errors = True
@@ -60,6 +64,7 @@ Configurable options in pyproject.toml:
 
         sub = self.argument("subcommand")
         args = self.argument("args")
+        is_silent = self.option("silent")
 
         if sub == "run":
             self.run_service(data, args, self.line)
@@ -73,6 +78,9 @@ Configurable options in pyproject.toml:
             service_register(data, self.line)
         elif sub == "create-service-id":
             sid = create_service_id(data, self.line)
+            print(sid)
+        elif sub == "get-service-id":
+            sid = get_service_id(data, is_silent, self.line)
             print(sid)
         elif sub == "tool-register":
             tool_register(data, self.line)

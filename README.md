@@ -28,7 +28,7 @@ poetry ivcap docker-build
 poetry ivcap docker-run
 poetry ivcap docker-publish
 poetry ivcap service-register
-poetry ivcap create-service-id
+poetry ivcap create-service-idget
 poetry ivcap tool-register
 ```
 
