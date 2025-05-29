@@ -8,6 +8,7 @@ from poetry.plugins.application_plugin import ApplicationPlugin
 from cleo.commands.command import Command
 from cleo.helpers import argument, option
 import subprocess
+from importlib.metadata import version
 
 from poetry_plugin_ivcap.util import get_version
 
@@ -59,6 +60,7 @@ Configurable options in pyproject.toml:
     ignore_validation_errors = True
 
     def handle(self):
+
         poetry = self.application.poetry
         data = poetry.pyproject.data
 
@@ -84,6 +86,12 @@ Configurable options in pyproject.toml:
             print(sid)
         elif sub == "tool-register":
             tool_register(data, self.line)
+        elif sub == "version":
+            #v = poetry.get_plugin('ivcap').version
+            v = version("poetry-plugin-ivcap")
+            print(f"IVCAP plugin (version {v})")
+            return
+
         else:
             if not (sub == None or sub == "help"):
                 self.line(f"<error>Unknown subcommand: {sub}</error>")

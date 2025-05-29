@@ -43,7 +43,7 @@ def service_register(data, line):
     if not pkg or pkg == "":
         line(f"<error>No package '{dcfg.docker_name}' found. Please build and publish it first.</error>")
         return
-    service_id = get_service_id(data, line)
+    service_id = get_service_id(data, False, line)
 
     cmd = ["poetry", "run", "python", service, "--print-service-description"]
     line(f"<debug>Running: {' '.join(cmd)} </debug>")
@@ -85,7 +85,7 @@ def tool_register(data, line):
     line(f"<debug>Running: {' '.join(cmd)} </debug>")
     svc = subprocess.check_output(cmd).decode()
 
-    service_id = get_service_id(data, line)
+    service_id = get_service_id(data, False, line)
     svc = svc.replace("#SERVICE_ID#", service_id)
 
     with tempfile.NamedTemporaryFile(mode='w+', delete=False) as tmp:
