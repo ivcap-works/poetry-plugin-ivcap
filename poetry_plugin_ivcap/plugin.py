@@ -61,10 +61,16 @@ Configurable options in pyproject.toml:
 
     def handle(self):
 
+        sub = self.argument("subcommand")
+        if sub == "version":
+            #v = poetry.get_plugin('ivcap').version
+            v = version("poetry-plugin-ivcap")
+            print(f"IVCAP plugin (version {v})")
+            return
+
         poetry = self.application.poetry
         data = poetry.pyproject.data
 
-        sub = self.argument("subcommand")
         args = self.argument("args")
         is_silent = self.option("silent")
 
@@ -86,11 +92,6 @@ Configurable options in pyproject.toml:
             print(sid)
         elif sub == "tool-register":
             tool_register(data, self.line)
-        elif sub == "version":
-            #v = poetry.get_plugin('ivcap').version
-            v = version("poetry-plugin-ivcap")
-            print(f"IVCAP plugin (version {v})")
-            return
 
         else:
             if not (sub == None or sub == "help"):
