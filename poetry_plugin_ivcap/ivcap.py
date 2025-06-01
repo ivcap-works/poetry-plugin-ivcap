@@ -11,8 +11,10 @@ import tempfile
 import uuid
 import humanize
 
+from .constants import DEF_POLICY, PLUGIN_NAME, SERVICE_FILE_OPT, SERVICE_ID_OPT
+
 from .docker import docker_cfg, docker_build, docker_push
-from .util import command_exists, execute_subprocess_and_capture_output, get_name, string_to_number
+from .util import command_exists, get_name, string_to_number
 
 def docker_publish(data, line):
     check_ivcap_cmd(line)
@@ -29,11 +31,11 @@ def docker_publish(data, line):
 
 def service_register(data, line):
     check_ivcap_cmd(line)
-    config = data.get("tool", {}).get("poetry-plugin-ivcap", {})
+    config = data.get("tool", {}).get(PLUGIN_NAME, {})
 
-    service = config.get("service-file")
+    service = config.get(SERVICE_FILE_OPT)
     if not service:
-        line("<error>Missing 'service-file' in [tool.poetry-plugin-ivcap]</error>")
+        line(f"<error>Missing '{SERVICE_FILE_OPT}' in [tool.{PLUGIN_NAME}]</error>")
         return
 
     dcfg = docker_cfg(data, line, "amd64")
@@ -74,11 +76,11 @@ def service_register(data, line):
 
 def tool_register(data, line):
     check_ivcap_cmd(line)
-    config = data.get("tool", {}).get("poetry-plugin-ivcap", {})
+    config = data.get("tool", {}).get(PLUGIN_NAME, {})
 
     service = config.get("service-file")
     if not service:
-        line("<error>Missing 'service-file' in [tool.poetry-plugin-ivcap]</error>")
+        line(f"<error>Missing 'service-file' in [tool.{PLUGIN_NAME}]</error>")
         return
 
     cmd = ["poetry", "run", "python", service, "--print-tool-description"]
@@ -109,7 +111,7 @@ def tool_register(data, line):
             os.remove(tmp_path)
 
 def get_service_id(data, is_silent, line):
-    service_id = data.get("tool", {}).get("poetry-plugin-ivcap", {}).get("service-id")
+    service_id = data.get("tool", {}).get(PLUGIN_NAME, {}).get(SERVICE_ID_OPT)
     if not service_id:
         service_id = create_service_id(data, is_silent, line)
     return service_id
@@ -122,9 +124,9 @@ def create_service_id(data, is_silent, line):
     return f"urn:ivcap:service:{id}"
 
 def get_policy(data, line):
-    policy = data.get("tool", {}).get("poetry-plugin-ivcap", {}).get("policy")
+    policy = data.get("tool", {}).get(PLUGIN_NAME, {}).get("policy")
     if not policy:
-        policy = "urn:ivcap:policy:ivcap.open.metadata"
+        policy = DEF_POLICY
     return policy
 
 def get_account_id(data, line, is_silent=False):

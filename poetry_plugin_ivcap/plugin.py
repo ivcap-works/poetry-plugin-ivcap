@@ -10,6 +10,7 @@ from cleo.helpers import argument, option
 import subprocess
 from importlib.metadata import version
 
+from poetry_plugin_ivcap.constants import DOCKER_BUILD_TEMPLATE_OPT, DOCKER_RUN_TEMPLATE_OPT, PLUGIN_CMD, PLUGIN_NAME, PORT_OPT, SERVICE_FILE_OPT, SERVICE_ID_OPT, SERVICE_TYPE_OPT
 from poetry_plugin_ivcap.util import get_version
 
 from .ivcap import create_service_id, get_service_id, service_register, tool_register
@@ -18,8 +19,8 @@ from .ivcap import docker_publish
 
 class IvcapCommand(Command):
     name = "ivcap"
-    description = "IVCAP plugin `poetry ivcap <subcommand>`"
-    help = """\
+    description = f"IVCAP plugin `poetry {PLUGIN_CMD} <subcommand>`"
+    help = f"""\
 
 IVCAP plugin
 
@@ -34,19 +35,21 @@ Available subcommands:
     create-service-id   Create a unique service ID for the service
     get-service-id      Return the service ID for the service
     tool-register       Register the service as an AI Tool with IVCAP
+    version             Print the version of this plugin
 
 Example:
-  poetry ivcap run -- --port 8080
+  poetry {PLUGIN_CMD} run -- --port 8080
 
 Configurable options in pyproject.toml:
 
-  [tool.poetry-plugin-ivcap]
-  service-file = "service.py"  # The Python file that implements the service
-  service-file = "service.py"
-  service-id = "urn:ivcap:service:ac158a1f-dfb4-5dac-bf2e-9bf15e0f2cc7" # A unique identifier for the service
+  [tool.{PLUGIN_NAME}]
+  {SERVICE_FILE_OPT} = "service.py"  # The Python file that implements the service
+  {SERVICE_ID_OPT} = "urn:ivcap:service:ac158a1f-dfb4-5dac-bf2e-9bf15e0f2cc7" # A unique identifier for the service
+  {SERVICE_TYPE_OPT} = "lambda
 
-  docker-build-template = "docker buildx build -t #DOCKER_NAME#  ."
-  docker-run-template = "docker run -rm -p #PORT#:#PORT#"
+  # Optional
+  {DOCKER_BUILD_TEMPLATE_OPT} = "docker buildx build -t #DOCKER_NAME#  ."
+  {DOCKER_RUN_TEMPLATE_OPT} = "docker run -rm -p #PORT#:#PORT#"
 """
     arguments = [
         argument("subcommand", optional=True, description="Subcommand: run, deploy, etc."),
@@ -64,7 +67,7 @@ Configurable options in pyproject.toml:
         sub = self.argument("subcommand")
         if sub == "version":
             #v = poetry.get_plugin('ivcap').version
-            v = version("poetry-plugin-ivcap")
+            v = version(PLUGIN_NAME)
             print(f"IVCAP plugin (version {v})")
             return
 
@@ -99,15 +102,15 @@ Configurable options in pyproject.toml:
             print(self.help)
 
     def run_service(self, data, args, line):
-        config = data.get("tool", {}).get("poetry-plugin-ivcap", {})
+        config = data.get("tool", {}).get(PLUGIN_NAME, {})
 
-        service = config.get("service-file")
+        service = config.get(SERVICE_FILE_OPT)
         if not service:
-            self.line("<error>Missing 'service-file' in [tool.poetry-plugin-ivcap]</error>")
+            self.line(f"<error>Missing '{SERVICE_FILE_OPT}' in [tool.{PLUGIN_NAME}]</error>")
             return
 
         if not '--port' in args:
-            port = config.get("port")
+            port = config.get(PORT_OPT)
             if port:
                 args.extend(["--port", str(port)])
 
@@ -121,4 +124,4 @@ Configurable options in pyproject.toml:
 
 class IvcapPlugin(ApplicationPlugin):
     def activate(self, application):
-        application.command_loader.register_factory("ivcap", lambda: IvcapCommand())
+        application.command_loader.register_factory(PLUGIN_CMD, lambda: IvcapCommand())

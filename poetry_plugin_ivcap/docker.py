@@ -12,33 +12,8 @@ from typing import Dict, List, Optional
 from pydantic import BaseModel, Field
 import subprocess
 
+from .constants import DEF_PORT, DOCKER_BATCH_RUN_TEMPLATE, DOCKER_BUILD_TEMPLATE, DOCKER_BUILD_TEMPLATE_OPT, DOCKER_LAMBDA_RUN_TEMPLATE, DOCKER_RUN_OPT, DOCKER_RUN_TEMPLATE_OPT, PLUGIN_NAME, SERVICE_TYPE_OPT
 from .util import command_exists, get_name, get_version
-
-DOCKER_BUILD_TEMPLATE = """
-docker buildx build
-    -t #DOCKER_NAME#
-    --platform linux/#ARCH#
-    --build-arg VERSION=#VERSION#
-    --build-arg BUILD_PLATFORM=linux/#ARCH#
-    -f #PROJECT_DIR#/#DOCKERFILE#
-    --load #PROJECT_DIR#
-"""
-
-DOCKER_LAMBDA_RUN_TEMPLATE = """
-	docker run -it
-        -p #PORT#:#PORT#
-		--platform=linux/#ARCH#
-		--rm \
-		#NAME#_#ARCH#:#TAG#
-"""
-
-DOCKER_BATCH_RUN_TEMPLATE = """
-	docker run -it
-		--platform=linux/#ARCH#
-        -v #PROJECT_DIR#:/data
-		--rm \
-		#NAME#_#ARCH#:#TAG#
-"""
 
 class DockerConfig(BaseModel):
     name: Optional[str] = Field(None)
@@ -53,8 +28,8 @@ class DockerConfig(BaseModel):
         return f"{self.name}_{self.arch}:{self.tag}"
 
     def from_build_template(self, data: dict) -> str:
-        pdata = data.get("tool", {}).get("poetry-plugin-ivcap", {})
-        template = pdata.get("docker-build-template", DOCKER_BUILD_TEMPLATE).strip()
+        pdata = data.get("tool", {}).get(PLUGIN_NAME, {})
+        template = pdata.get(DOCKER_BUILD_TEMPLATE_OPT, DOCKER_BUILD_TEMPLATE).strip()
         t = template.strip()\
             .replace("#DOCKER_NAME#", self.docker_name)\
             .replace("#NAME#", self.name)\
@@ -67,35 +42,29 @@ class DockerConfig(BaseModel):
         return t
 
     def from_run_template(self, data, args, line) -> List[any]:
-        pdata = data.get("tool", {}).get("poetry-plugin-ivcap", {})
-        template = pdata.get("docker-run-template")
+        pdata = data.get("tool", {}).get(PLUGIN_NAME, {})
+        template = pdata.get(DOCKER_RUN_TEMPLATE_OPT)
         if template is None:
-            smode = pdata.get("service-type")
+            smode = pdata.get(SERVICE_TYPE_OPT)
             if smode is None:
-                line("<error>ERROR: 'service-type' is not defined in [poetry-plugin-ivcap]</error>")
+                line(f"<error>ERROR: 'service-type' is not defined in [{PLUGIN_NAME}]</error>")
                 sys.exit(1)
             if smode == "lambda":
                 template = DOCKER_LAMBDA_RUN_TEMPLATE
             elif smode == "batch":
                 template = DOCKER_BATCH_RUN_TEMPLATE
             else:
-                line(f"<error>ERROR: Unknown service type '{smode}' in [poetry-plugin-ivcap]</error>")
+                line(f"<error>ERROR: Unknown service type '{smode}' in [{PLUGIN_NAME}]</error>")
                 sys.exit(1)
 
-        opts = pdata.get("docker-run-opts", [])
+        opts = pdata.get(DOCKER_RUN_OPT, [])
         port = get_port_value(args)
         port_in_args = True
         if not port:
             port = get_port_value(opts)
         if not port:
             port_in_args = False
-            port = str(pdata.get("port", 8000))
-
-        # elif opts.get('port') is not None:
-        #     opts['port'] = opts.get('port')
-        # elif '--port' in template:
-        #     # If the template has a port but no port is provided, use a default
-        #     opts['port'] = '8000'
+            port = str(pdata.get("port", DEF_PORT))
 
         t = template.strip()\
             .replace("#NAME#", self.name)\
@@ -104,11 +73,6 @@ class DockerConfig(BaseModel):
             .replace("#ARCH#", self.arch)\
             .replace("#VERSION#", self.version)\
             .replace("#PROJECT_DIR#", self.project_dir)
-
-        # for key, value in opts.items():
-        #     if key != "port":
-        #         t = t.replace(f"#{key.upper()}#", str(value))
-
 
         cmd = t.split()
         cmd.extend(opts)
@@ -146,7 +110,7 @@ def docker_run(data: dict, args, line) -> None:
 def docker_cfg(data: dict, line, arch = None) -> DockerConfig:
     name = get_name(data)
 
-    pdata = data.get("tool", {}).get("poetry-plugin-ivcap", {})
+    pdata = data.get("tool", {}).get(PLUGIN_NAME, {})
     config = DockerConfig(name=name, **pdata.get("docker", {}))
     if arch:
         # override architecture if provided
