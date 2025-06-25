@@ -44,11 +44,11 @@ class DockerConfig(BaseModel):
     def from_run_template(self, data, args, line) -> List[any]:
         pdata = data.get("tool", {}).get(PLUGIN_NAME, {})
         template = pdata.get(DOCKER_RUN_TEMPLATE_OPT)
+        smode = pdata.get(SERVICE_TYPE_OPT)
+        if smode is None:
+            line(f"<error>ERROR: 'service-type' is not defined in [{PLUGIN_NAME}]</error>")
+            sys.exit(1)
         if template is None:
-            smode = pdata.get(SERVICE_TYPE_OPT)
-            if smode is None:
-                line(f"<error>ERROR: 'service-type' is not defined in [{PLUGIN_NAME}]</error>")
-                sys.exit(1)
             if smode == "lambda":
                 template = DOCKER_LAMBDA_RUN_TEMPLATE
             elif smode == "batch":

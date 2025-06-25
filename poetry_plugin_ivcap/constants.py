@@ -11,6 +11,7 @@ SERVICE_ID_OPT = "service-id"
 SERVICE_FILE_OPT = "service-file"
 SERVICE_TYPE_OPT = "service-type"
 PORT_OPT = "port"
+POLICY_OPT = "policy"
 
 DOCKER_RUN_TEMPLATE_OPT = "docker-run-template"
 DOCKER_RUN_OPT = "docker-run-opts"

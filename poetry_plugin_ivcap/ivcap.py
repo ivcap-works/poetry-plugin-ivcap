@@ -11,7 +11,7 @@ import tempfile
 import uuid
 import humanize
 
-from .constants import DEF_POLICY, PLUGIN_NAME, SERVICE_FILE_OPT, SERVICE_ID_OPT
+from .constants import DEF_POLICY, PLUGIN_NAME, POLICY_OPT, SERVICE_FILE_OPT, SERVICE_ID_OPT
 
 from .docker import docker_cfg, docker_build, docker_push
 from .util import command_exists, get_name, string_to_number
@@ -124,7 +124,7 @@ def create_service_id(data, is_silent, line):
     return f"urn:ivcap:service:{id}"
 
 def get_policy(data, line):
-    policy = data.get("tool", {}).get(PLUGIN_NAME, {}).get("policy")
+    policy = data.get("tool", {}).get(PLUGIN_NAME, {}).get(POLICY_OPT)
     if not policy:
         policy = DEF_POLICY
     return policy
