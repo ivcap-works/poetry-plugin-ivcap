@@ -67,6 +67,7 @@ class DockerConfig(BaseModel):
             port = str(pdata.get("port", DEF_PORT))
 
         t = template.strip()\
+            .replace("#DOCKER_NAME#", self.docker_name)\
             .replace("#NAME#", self.name)\
             .replace("#TAG#", self.tag)\
             .replace("#PORT#", port)\
