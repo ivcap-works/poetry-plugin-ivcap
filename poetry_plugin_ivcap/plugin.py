@@ -29,7 +29,8 @@ Supporting the development of services and tools for the IVCAP platform
 Available subcommands:
     run                 Run the service locally
     docker-build        Build the docker image for this service
-    docker-run          Run the service's docker image locally
+    docker-run          Run the service's docker image locally for testing
+    deploy              Deploy the service to IVCAP (calls docker-publish, service-register and tool-register)
     docker-publish      Publish the service's docker image to IVCAP
     service-register    Register the service with IVCAP
     create-service-id   Create a unique service ID for the service
@@ -49,7 +50,7 @@ Configurable options in pyproject.toml:
 
   # Optional
   {DOCKER_BUILD_TEMPLATE_OPT} = "docker buildx build -t #DOCKER_NAME#  ."
-  {DOCKER_RUN_TEMPLATE_OPT} = "docker run -rm -p #PORT#:#PORT#"
+  {DOCKER_RUN_TEMPLATE_OPT} = "docker run --rm -p #PORT#:#PORT# #DOCKER_NAME#"
 """
     arguments = [
         argument("subcommand", optional=True, description="Subcommand: run, deploy, etc."),
@@ -83,6 +84,10 @@ Configurable options in pyproject.toml:
             docker_build(data, self.line)
         elif sub == "docker-run":
             docker_run(data, args, self.line)
+        elif sub == "deploy" or sub == "publish":
+            docker_publish(data, self.line)
+            service_register(data, self.line)
+            tool_register(data, self.line)
         elif sub == "docker-publish":
             docker_publish(data, self.line)
         elif sub == "service-register":
