@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "poetry-plugin-ivcap"
-version = "0.4.0"
+version = "0.4.1"
 description = "A custom Poetry command for IVCAP deployments"
 authors = ["Max Ott <max.ott@csiro.au>"]
 license = "MIT"

@@ -99,7 +99,7 @@ Configurable options in pyproject.toml:
         elif sub == "service-register":
             service_register(data, self.line)
         elif sub == "create-service-id":
-            sid = create_service_id(data, self.line)
+            sid = create_service_id(data, is_silent, self.line)
             print(sid)
         elif sub == "get-service-id":
             sid = get_service_id(data, is_silent, self.line)
