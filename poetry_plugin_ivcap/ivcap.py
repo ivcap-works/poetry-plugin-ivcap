@@ -10,6 +10,8 @@ import sys
 import tempfile
 import uuid
 import humanize
+import subprocess
+import requests
 
 from .constants import DEF_POLICY, PLUGIN_NAME, POLICY_OPT, SERVICE_FILE_OPT, SERVICE_ID_OPT
 
@@ -128,6 +130,131 @@ def get_policy(data, line):
     if not policy:
         policy = DEF_POLICY
     return policy
+
+def exec_job(data, args, is_silent, line):
+    """
+    Execute a job by posting a JSON request to the IVCAP API.
+
+    Returns:
+        requests.Response: The response object from the API call.
+    """
+    # Parse 'args' for run options
+    if not isinstance(args, list) or len(args) < 1:
+        raise Exception("args must be a list with at least one element")
+    file_name = args[0]
+    timeout = 20 # default timeout
+    if len(args) == 1:
+        pass  # only file_name provided
+    elif len(args) == 3 and args[1] == '--timeout':
+        try:
+            timeout = int(args[2])
+        except ValueError:
+            raise Exception("Timeout value must be an integer")
+    else:
+        raise Exception("args must be [file_name] or [file_name, '--timeout', value]")
+
+    # Get access token using ivcap CLI
+    try:
+        token = subprocess.check_output(
+            ["ivcap", "--silent", "context", "get", "access-token", "--refresh-token"],
+            text=True
+        ).strip()
+    except Exception as e:
+        raise RuntimeError(f"Failed to get IVCAP access token: {e}")
+
+   # Get IVCAP deployment URL
+    try:
+        ivcap_url = subprocess.check_output(
+            ["ivcap", "--silent", "context", "get", "url"],
+            text=True
+        ).strip()
+    except Exception as e:
+        raise RuntimeError(f"Failed to get IVCAP deployment URL: {e}")
+
+    # Read the JSON request file
+    try:
+        with open(file_name, "r", encoding="utf-8") as f:
+            json_data = f.read()
+    except Exception as e:
+        raise RuntimeError(f"Failed to read request file '{file_name}': {e}")
+
+    # Prepare headers
+    headers = {
+        "content-type": "application/json",
+        "Timeout": f"{timeout}",
+        "Authorization": f"Bearer {token}"
+    }
+
+    # Build URL
+    service_id = get_service_id(data, is_silent, line)
+    url = f"{ivcap_url}/1/services2/{service_id}/jobs"
+    params = {"with-result-content": "true"}
+
+    # 5. POST request
+    if not is_silent:
+        line(f"<debug>Creating job '{url}'</debug>")
+    try:
+        response = requests.post(url, headers=headers, params=params, data=json_data)
+    except Exception as e:
+        raise RuntimeError(f"Job submission failed: {e}")
+
+    # Handle response according to requirements
+    import time
+    import json
+
+    def handle_response(resp):
+        content_type = resp.headers.get("content-type", "")
+        if resp.status_code >= 300:
+            line(f"<warning>WARNING: Received status code {resp.status_code}</warning>")
+            line(f"<info>Headers: {str(resp.headers)}</info>")
+            line(f"<info>Body: {str(resp.text)}</info>")
+        elif resp.status_code == 200:
+            if "application/json" in content_type:
+                try:
+                    parsed = resp.json()
+                    print(json.dumps(parsed, indent=2, sort_keys=True))
+                except Exception as e:
+                    line(f"<warning>Failed to parse JSON response: {e}</warning>")
+                    line(f"<warning>Headers: {str(resp.headers)}</warning>")
+            else:
+                line(f"<info>Headers: {str(resp.headers)}</info>")
+        else:
+            line(f"<warning>Received status code {resp.status_code}</warning>")
+            line(f"<warning>Headers: {str(resp.headers)}</warning>")
+
+    if response.status_code == 202:
+        try:
+            payload = response.json()
+            # use when ../output is fixed
+            # location = f"{payload.get('location')}/output"
+            location = f"{payload.get('location')}"
+            job_id = payload.get("job-id")
+            retry_later = payload.get("retry-later", 10)
+            if not is_silent:
+                line(f"<debug>Job '{job_id}' accepted, but no result yet. Polling in {retry_later} seconds.</debug>")
+            while True:
+                time.sleep(retry_later)
+                poll_headers = {
+                    "Authorization": f"Bearer {token}"
+                }
+                poll_resp = requests.get(location, headers=poll_headers)
+                if poll_resp.status_code == 202:
+                    try:
+                        poll_payload = poll_resp.json()
+                        location = poll_payload.get("location", location)
+                        retry_later = poll_payload.get("retry-later", retry_later)
+                        if not is_silent:
+                            line(f"<debug>Still processing. Next poll in {retry_later} seconds.</debug>")
+                    except Exception as e:
+                        line(f"<error>Failed to parse polling response: {e}</error>")
+                        break
+                else:
+                    handle_response(poll_resp)
+                    break
+        except Exception as e:
+            line(f"<error>Failed to handle 202 response: {e}</error>")
+    else:
+        handle_response(response)
 
 def get_account_id(data, line, is_silent=False):
     check_ivcap_cmd(line)

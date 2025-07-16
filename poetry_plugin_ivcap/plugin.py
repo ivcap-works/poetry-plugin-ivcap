@@ -10,10 +10,11 @@ from cleo.helpers import argument, option
 import subprocess
 from importlib.metadata import version
 
-from poetry_plugin_ivcap.constants import DOCKER_BUILD_TEMPLATE_OPT, DOCKER_RUN_TEMPLATE_OPT, PLUGIN_CMD, PLUGIN_NAME, PORT_OPT, SERVICE_FILE_OPT, SERVICE_ID_OPT, SERVICE_TYPE_OPT
+from poetry_plugin_ivcap.constants import DOCKER_BUILD_TEMPLATE_OPT, DOCKER_RUN_TEMPLATE_OPT, PLUGIN_CMD, PLUGIN_NAME
+from poetry_plugin_ivcap.constants import PORT_OPT, SERVICE_FILE_OPT, SERVICE_ID_OPT, SERVICE_TYPE_OPT, POLICY_OPT
 from poetry_plugin_ivcap.util import get_version
 
-from .ivcap import create_service_id, get_service_id, service_register, tool_register
+from .ivcap import create_service_id, exec_job, get_service_id, service_register, tool_register
 from .docker import docker_build, docker_run
 from .ivcap import docker_publish
 
@@ -31,6 +32,7 @@ Available subcommands:
     docker-build        Build the docker image for this service
     docker-run          Run the service's docker image locally for testing
     deploy              Deploy the service to IVCAP (calls docker-publish, service-register and tool-register)
+    job-exec file_name  Execute a job defined in 'file_name'
     docker-publish      Publish the service's docker image to IVCAP
     service-register    Register the service with IVCAP
     create-service-id   Create a unique service ID for the service
@@ -40,15 +42,17 @@ Available subcommands:
 
 Example:
   poetry {PLUGIN_CMD} run -- --port 8080
+  poetry {PLUGIN_CMD} job-exec request.json -- --timeout 0 # don't wait for result
 
 Configurable options in pyproject.toml:
 
   [tool.{PLUGIN_NAME}]
   {SERVICE_FILE_OPT} = "service.py"  # The Python file that implements the service
-  {SERVICE_ID_OPT} = "urn:ivcap:service:ac158a1f-dfb4-5dac-bf2e-9bf15e0f2cc7" # A unique identifier for the service
+  {SERVICE_ID_OPT} = "urn:ivcap:service:ac158a1f-dfb4-5dac-bf2e-00000000000" # A unique identifier for the service
   {SERVICE_TYPE_OPT} = "lambda
 
   # Optional
+  {POLICY_OPT} = "urn:ivcap:policy:ivcap.open.metadata"
   {DOCKER_BUILD_TEMPLATE_OPT} = "docker buildx build -t #DOCKER_NAME#  ."
   {DOCKER_RUN_TEMPLATE_OPT} = "docker run --rm -p #PORT#:#PORT# #DOCKER_NAME#"
 """
@@ -88,6 +92,8 @@ Configurable options in pyproject.toml:
             docker_publish(data, self.line)
             service_register(data, self.line)
             tool_register(data, self.line)
+        elif sub == "exec-job" or sub == "job-exec":
+            exec_job(data, args, is_silent, self.line)
         elif sub == "docker-publish":
             docker_publish(data, self.line)
         elif sub == "service-register":
