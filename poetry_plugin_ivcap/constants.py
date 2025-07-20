@@ -19,6 +19,7 @@ DOCKER_BUILD_TEMPLATE_OPT = "docker-build-template"
 
 DEF_POLICY = "urn:ivcap:policy:ivcap.base.metadata"
 DEF_PORT = 8000
+DEF_IVCAP_BASE_URL = "https://develop.ivcap.net"
 
 DOCKER_BUILD_TEMPLATE = """
 docker buildx build
@@ -33,6 +34,7 @@ docker buildx build
 DOCKER_LAMBDA_RUN_TEMPLATE = """
 	docker run -it
         -p #PORT#:#PORT#
+        -e IVCAP_BASE_URL=#IVCAP_BASE_URL#
 		--platform=linux/#ARCH#
 		--rm \
 		#NAME#_#ARCH#:#TAG#
@@ -40,6 +42,7 @@ DOCKER_LAMBDA_RUN_TEMPLATE = """
 
 DOCKER_BATCH_RUN_TEMPLATE = """
 	docker run -it
+        -e IVCAP_BASE_URL=#IVCAP_BASE_URL#
 		--platform=linux/#ARCH#
         -v #PROJECT_DIR#:/data
 		--rm \

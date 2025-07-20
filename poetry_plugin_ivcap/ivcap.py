@@ -13,7 +13,7 @@ import humanize
 import subprocess
 import requests
 
-from .constants import DEF_POLICY, PLUGIN_NAME, POLICY_OPT, SERVICE_FILE_OPT, SERVICE_ID_OPT
+from .constants import DEF_POLICY, PLUGIN_NAME, POLICY_OPT, SERVICE_FILE_OPT, SERVICE_ID_OPT, DEF_IVCAP_BASE_URL
 
 from .docker import docker_cfg, docker_build, docker_push
 from .util import command_exists, get_name, string_to_number
@@ -51,7 +51,9 @@ def service_register(data, line):
 
     cmd = ["poetry", "run", "python", service, "--print-service-description"]
     line(f"<debug>Running: {' '.join(cmd)} </debug>")
-    svc = subprocess.check_output(cmd).decode()
+    env = os.environ.copy()
+    env.setdefault("IVCAP_BASE_URL", DEF_IVCAP_BASE_URL)
+    svc = subprocess.check_output(cmd, env=env).decode()
 
     svc = svc.replace("#DOCKER_IMG#", pkg.strip())\
             .replace("#SERVICE_ID#", service_id)
@@ -87,7 +89,9 @@ def tool_register(data, line):
 
     cmd = ["poetry", "run", "python", service, "--print-tool-description"]
     line(f"<debug>Running: {' '.join(cmd)} </debug>")
-    svc = subprocess.check_output(cmd).decode()
+    env = os.environ.copy()
+    env.setdefault("IVCAP_BASE_URL", DEF_IVCAP_BASE_URL)
+    svc = subprocess.check_output(cmd, env=env).decode()
 
     service_id = get_service_id(data, False, line)
     svc = svc.replace("#SERVICE_ID#", service_id)
@@ -142,7 +146,7 @@ def exec_job(data, args, is_silent, line):
     if not isinstance(args, list) or len(args) < 1:
         raise Exception("args must be a list with at least one element")
     file_name = args[0]
-    timeout = 20 # default timeout
+    timeout = 5 # default timeout
     if len(args) == 1:
         pass  # only file_name provided
     elif len(args) == 3 and args[1] == '--timeout':
@@ -212,7 +216,11 @@ def exec_job(data, args, is_silent, line):
             if "application/json" in content_type:
                 try:
                     parsed = resp.json()
+                    status = parsed.get("status")
+                    if status and (not status in ["succeeded", "failed", "error"]):
+                        return status
                     print(json.dumps(parsed, indent=2, sort_keys=True))
+                    return None
                 except Exception as e:
                     line(f"<warning>Failed to parse JSON response: {e}</warning>")
                     line(f"<warning>Headers: {str(resp.headers)}</warning>")
@@ -221,6 +229,7 @@ def exec_job(data, args, is_silent, line):
         else:
             line(f"<warning>Received status code {resp.status_code}</warning>")
             line(f"<warning>Headers: {str(resp.headers)}</warning>")
+        return "unknown"
 
     if response.status_code == 202:
         try:
@@ -229,7 +238,7 @@ def exec_job(data, args, is_silent, line):
             # location = f"{payload.get('location')}/output"
             location = f"{payload.get('location')}"
             job_id = payload.get("job-id")
-            retry_later = payload.get("retry-later", 10)
+            retry_later = payload.get("retry-later", 5)
             if not is_silent:
                 line(f"<debug>Job '{job_id}' accepted, but no result yet. Polling in {retry_later} seconds.</debug>")
             while True:
@@ -249,8 +258,13 @@ def exec_job(data, args, is_silent, line):
                         line(f"<error>Failed to parse polling response: {e}</error>")
                         break
                 else:
-                    handle_response(poll_resp)
-                    break
+                    status = handle_response(poll_resp)
+                    if status:
+                        if not is_silent:
+                            line(f"<debug>Status: '{status}'. Next poll in {retry_later} seconds.</debug>")
+                    else:
+                        break
+
         except Exception as e:
             line(f"<error>Failed to handle 202 response: {e}</error>")
     else:

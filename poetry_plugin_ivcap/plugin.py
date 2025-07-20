@@ -10,7 +10,7 @@ from cleo.helpers import argument, option
 import subprocess
 from importlib.metadata import version
 
-from poetry_plugin_ivcap.constants import DOCKER_BUILD_TEMPLATE_OPT, DOCKER_RUN_TEMPLATE_OPT, PLUGIN_CMD, PLUGIN_NAME
+from poetry_plugin_ivcap.constants import DEF_IVCAP_BASE_URL, DOCKER_BUILD_TEMPLATE_OPT, DOCKER_RUN_TEMPLATE_OPT, PLUGIN_CMD, PLUGIN_NAME
 from poetry_plugin_ivcap.constants import PORT_OPT, SERVICE_FILE_OPT, SERVICE_ID_OPT, SERVICE_TYPE_OPT, POLICY_OPT
 from poetry_plugin_ivcap.util import get_version
 
@@ -127,6 +127,7 @@ Configurable options in pyproject.toml:
 
         env = os.environ.copy()
         env["VERSION"] = get_version(data, None, line)
+        env.setdefault("IVCAP_BASE_URL", DEF_IVCAP_BASE_URL)
 
         cmd = ["poetry", "run", "python", service]
         cmd.extend(args)

@@ -12,7 +12,7 @@ from typing import Dict, List, Optional
 from pydantic import BaseModel, Field
 import subprocess
 
-from .constants import DEF_PORT, DOCKER_BATCH_RUN_TEMPLATE, DOCKER_BUILD_TEMPLATE, DOCKER_BUILD_TEMPLATE_OPT, DOCKER_LAMBDA_RUN_TEMPLATE, DOCKER_RUN_OPT, DOCKER_RUN_TEMPLATE_OPT, PLUGIN_NAME, SERVICE_TYPE_OPT
+from .constants import DEF_IVCAP_BASE_URL, DEF_PORT, DOCKER_BATCH_RUN_TEMPLATE, DOCKER_BUILD_TEMPLATE, DOCKER_BUILD_TEMPLATE_OPT, DOCKER_LAMBDA_RUN_TEMPLATE, DOCKER_RUN_OPT, DOCKER_RUN_TEMPLATE_OPT, PLUGIN_NAME, SERVICE_TYPE_OPT
 from .util import command_exists, get_name, get_version
 
 class DockerConfig(BaseModel):
@@ -66,8 +66,10 @@ class DockerConfig(BaseModel):
             port_in_args = False
             port = str(pdata.get("port", DEF_PORT))
 
+        base_url = os.environ.get("IVCAP_BASE_URL", DEF_IVCAP_BASE_URL)
         t = template.strip()\
             .replace("#DOCKER_NAME#", self.docker_name)\
+            .replace("#IVCAP_BASE_URL#", base_url)\
             .replace("#NAME#", self.name)\
             .replace("#TAG#", self.tag)\
             .replace("#PORT#", port)\
